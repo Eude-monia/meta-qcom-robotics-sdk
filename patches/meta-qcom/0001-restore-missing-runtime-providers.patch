@@ -1,0 +1,208 @@
+diff --git a/conf/layer.conf b/conf/layer.conf
+index 221d2189..4d0ce399 100644
+--- a/conf/layer.conf
++++ b/conf/layer.conf
+@@ -20,6 +20,8 @@ LAYERSERIES_COMPAT_qcom = "wrynose"
+ LICENSE_PATH += "${LAYERDIR}/licenses"
+ 
+ BBFILES_DYNAMIC += " \
++    ai:${LAYERDIR}/dynamic-layers/ai/*/*/*.bb \
++    ai:${LAYERDIR}/dynamic-layers/ai/*/*/*.bbappend \
+     meta-arm:${LAYERDIR}/dynamic-layers/meta-arm/*/*/*.bb \
+     meta-arm:${LAYERDIR}/dynamic-layers/meta-arm/*/*/*.bbappend \
+     networking-layer:${LAYERDIR}/dynamic-layers/networking-layer/*/*/*.bb \
+diff --git a/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/files/0001-cmake-Rename-pkg-config-output-to-libonnxruntime_pr.patch b/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/files/0001-cmake-Rename-pkg-config-output-to-libonnxruntime_pr.patch
+new file mode 100644
+index 00000000..6eaf4b03
+--- /dev/null
++++ b/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/files/0001-cmake-Rename-pkg-config-output-to-libonnxruntime_pr.patch
+@@ -0,0 +1,78 @@
++From 769f3b1024506599d56792b711fbd5b027df0599 Mon Sep 17 00:00:00 2001
++From: Pratik Pachange <ppachang@qti.qualcomm.com>
++Date: Wed, 22 Jul 2026 18:31:26 +0530
++Subject: [PATCH] cmake: Rename pkg-config output to
++ libonnxruntime_providers_qnn.pc
++
++This repo builds only the QNN execution provider, not the full
++generic ONNX Runtime distribution. Installing a pkg-config file named
++libonnxruntime.pc can collide with a real upstream libonnxruntime.pc
++if both end up installed on the same system.
++
++Rename the top-level CMake project from onnxruntime_qnn to
++onnxruntime_providers_qnn, and derive the pkg-config template's Name
++and Libs fields from @CMAKE_PROJECT_NAME@ instead of a hardcoded
++string, so the two stay in sync going forward.
++
++Rename cmake/libonnxruntime.pc.cmake.in to
++cmake/libonnxruntime_providers_qnn.pc.cmake.in and update the
++configure_file()/install() calls in cmake/CMakeLists.txt to match, so
++the build now emits libonnxruntime_providers_qnn.pc instead of
++libonnxruntime.pc. Also update the template's Description and URL
++fields to reflect the QNN execution provider package.
++
++Signed-off-by: Pratik Pachange <ppachang@qti.qualcomm.com>
++Upstream-Status: Backport [3e0c61b090a8710b43c6694353c43ccf4d9d32d0]
++---
++ cmake/CMakeLists.txt                                       | 8 ++++----
++ ...e.in => libonnxruntime_providers_qnn.pc.cmake.in}        | 8 ++++----
++ 2 files changed, 8 insertions(+), 8 deletions(-)
++ rename cmake/{libonnxruntime.pc.cmake.in => libonnxruntime_providers_qnn.pc.cmake.in} (78%)
++
++diff --git a/cmake/CMakeLists.txt b/cmake/CMakeLists.txt
++index d3118f881e..3ffc018bd9 100644
++--- a/cmake/CMakeLists.txt
+++++ b/cmake/CMakeLists.txt
++@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.28)
++ # Don't let cmake set a default value for CMAKE_CUDA_ARCHITECTURES
++ cmake_policy(SET CMP0104 OLD)
++ # Project
++-project(onnxruntime_qnn C CXX ASM)
+++project(onnxruntime_providers_qnn C CXX ASM)
++
++ # Disable fast-math for Intel oneAPI compiler
++ if("${CMAKE_CXX_COMPILER_ID}" MATCHES "IntelLLVM")
++@@ -871,9 +871,9 @@ else()
++   option(BUILD_PKGCONFIG_FILES "Build and install pkg-config files" OFF)
++ endif()
++ if (BUILD_PKGCONFIG_FILES)
++-   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libonnxruntime.pc.cmake.in
++-    ${CMAKE_CURRENT_BINARY_DIR}/libonnxruntime.pc @ONLY)
++-  install( FILES  ${CMAKE_CURRENT_BINARY_DIR}/libonnxruntime.pc DESTINATION
+++   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libonnxruntime_providers_qnn.pc.cmake.in
+++    ${CMAKE_CURRENT_BINARY_DIR}/libonnxruntime_providers_qnn.pc @ONLY)
+++  install( FILES  ${CMAKE_CURRENT_BINARY_DIR}/libonnxruntime_providers_qnn.pc DESTINATION
++     ${CMAKE_INSTALL_LIBDIR}/pkgconfig )
++ endif()
++
++diff --git a/cmake/libonnxruntime.pc.cmake.in b/cmake/libonnxruntime_providers_qnn.pc.cmake.in
++similarity index 78%
++rename from cmake/libonnxruntime.pc.cmake.in
++rename to cmake/libonnxruntime_providers_qnn.pc.cmake.in
++index 57b79d20a2..9ea70152f8 100644
++--- a/cmake/libonnxruntime.pc.cmake.in
+++++ b/cmake/libonnxruntime_providers_qnn.pc.cmake.in
++@@ -6,8 +6,8 @@ libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
++ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@/@CMAKE_PROJECT_NAME@
++
++ Name: @CMAKE_PROJECT_NAME@
++-Description: ONNX runtime
++-URL: https://github.com/microsoft/@CMAKE_PROJECT_NAME@
+++Description: ONNX runtime QNN execution provider
+++URL: https://github.com/onnxruntime/onnxruntime-qnn
++ Version: @ORT_VERSION@
++ Libs: -L${libdir} -l@CMAKE_PROJECT_NAME@
++ Cflags: -I${includedir}
++--
++2.34.1
++
+diff --git a/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/onnxruntime-qnn_2.4.0.bb b/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/onnxruntime-qnn_2.4.0.bb
+new file mode 100644
+index 00000000..ab902458
+--- /dev/null
++++ b/dynamic-layers/ai/recipes-ml/onnxruntime-qnn/onnxruntime-qnn_2.4.0.bb
+@@ -0,0 +1,65 @@
++SUMMARY = "ONNX Runtime QNN Execution Provider Plugin"
++DESCRIPTION = "Standalone ABI-stable plugin execution provider that brings Qualcomm \
++hardware acceleration to ONNX Runtime via the Qualcomm AI Runtime SDK (QAIRT)."
++HOMEPAGE = "https://github.com/onnxruntime/onnxruntime-qnn"
++
++LICENSE = "MIT"
++LIC_FILES_CHKSUM = "file://LICENSE;md5=89126ed2f39aa3ae6e826e484e3f6f3c"
++
++DEPENDS = " \
++    flatbuffers-tflite \
++    onnx \
++    onnxruntime \
++    protobuf \
++    protobuf-native \
++    qairt-sdk \
++"
++
++SRC_URI = "git://github.com/onnxruntime/onnxruntime-qnn.git;protocol=https;nobranch=1;tag=v${PV};name=ort-qnn \
++    git://github.com/dcleblanc/SafeInt.git;protocol=https;nobranch=1;name=safeint;tag=3.0.28;destsuffix=safeint \
++    file://0001-cmake-Rename-pkg-config-output-to-libonnxruntime_pr.patch \
++"
++
++SRCREV_FORMAT = "ort-qnn_safeint"
++SRCREV_ort-qnn = "215ea95bd6df9ab24ba48193a6554dce8490337d"
++SRCREV_safeint = "4cafc9196c4da9c817992b20f5253ef967685bf8"
++
++# Since qairt-sdk is installed only on ARMv8 (aarch64) machines and QNN EP uses
++# qairt sdk for hw acceleration. Therefore, builds for other architectures are
++# excluded for now.
++COMPATIBLE_MACHINE = "^$"
++COMPATIBLE_MACHINE:aarch64 = "(.*)"
++
++# Fix buildpaths QA issue: remap TMPDIR references in both debug info and
++# string literals embedded in the compiled libraries.
++CFLAGS:append   = " -ffile-prefix-map=${WORKDIR}=."
++CXXFLAGS:append = " -ffile-prefix-map=${WORKDIR}=."
++
++# onnxruntime headers are installed under usr/include/onnxruntime/ in the
++# sysroot, but the onnxruntime-qnn source includes them without that prefix
++# Add the subdirectory explicitly.
++CFLAGS:append   = " -I${STAGING_INCDIR}/onnxruntime"
++CXXFLAGS:append = " -I${STAGING_INCDIR}/onnxruntime"
++
++inherit cmake
++
++OECMAKE_SOURCEPATH = "${S}/cmake"
++
++EXTRA_OECMAKE = " \
++    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
++    -DCMAKE_FIND_ROOT_PATH=${STAGING_DIR_TARGET} \
++    -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
++    -DFETCHCONTENT_SOURCE_DIR_SAFEINT=${UNPACKDIR}/safeint \
++    -DONNX_CUSTOM_PROTOC_EXECUTABLE=${STAGING_BINDIR_NATIVE}/protoc \
++    -Donnxruntime_BUILD_SHARED_LIB=ON \
++    -Donnxruntime_BUILD_UNIT_TESTS=OFF \
++    -Donnxruntime_DISABLE_RTTI=OFF \
++    -Donnxruntime_ORT_HOME=${RECIPE_SYSROOT}/usr \
++    -Donnxruntime_USE_QNN=ON \
++    -Donnxruntime_QNN_HOME=${RECIPE_SYSROOT}/usr \
++"
++
++# libonnxruntime_providers_qnn.so is a runtime plugin, not a development linker
++# stub. Clean SOLIBSDEV and assign the file to the main package.
++FILES_SOLIBSDEV = ""
++FILES:${PN} += "${libdir}/libonnxruntime_providers_qnn.so"
+diff --git a/recipes-multimedia/imsdk/gst-plugins-imsdk-common.inc b/recipes-multimedia/imsdk/gst-plugins-imsdk-common.inc
+index acf5f366..46f9f412 100644
+--- a/recipes-multimedia/imsdk/gst-plugins-imsdk-common.inc
++++ b/recipes-multimedia/imsdk/gst-plugins-imsdk-common.inc
+@@ -5,7 +5,7 @@ SECTION = "multimedia"
+ LICENSE = "BSD-3-Clause-Clear"
+ LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=2998c54c288b081076c9af987bdf4838"
+ 
+-inherit cmake features_check pkgconfig
++inherit cmake features_check pkgconfig gobject-introspection
+ 
+ REQUIRED_DISTRO_FEATURES = "opengl"
+ 
+@@ -24,6 +24,7 @@ COMPATIBLE_MACHINE = "^$"
+ COMPATIBLE_MACHINE:aarch64 = "(.*)"
+ 
+ PACKAGECONFIG[base]         = "-DENABLE_GST_PLUGIN_BASE=ON, -DENABLE_GST_PLUGIN_BASE=OFF, json-glib virtual/egl virtual/libgbm virtual/libgles2 virtual/libgles3"
++PACKAGECONFIG[python]       = "-DENABLE_GST_PYTHON=ON -DPYTHON_SITEPACKAGES_DIR=${PYTHON_SITEPACKAGES_DIR}, -DENABLE_GST_PYTHON=OFF"
+ PACKAGECONFIG[camera]       = "-DENABLE_GST_PLUGIN_CAMERA_BASE=ON -DENABLE_GST_PLUGIN_QMMFSRC=1 -DVHDR_MODES_ENABLE=ON -DEIS_MODES_ENABLE=ON \
+                                -DFEATURE_OFFLINE_IFE_SUPPORT=ON -DENABLE_GST_PLUGIN_JPEGENC=1, -DENABLE_GST_PLUGIN_CAMERA_BASE=OFF -DENABLE_GST_PLUGIN_QMMFSRC=0 \
+                                -DVHDR_MODES_ENABLE=OFF -DEIS_MODES_ENABLE=OFF -DFEATURE_OFFLINE_IFE_SUPPORT=OFF -DENABLE_GST_PLUGIN_JPEGENC=0, camera-service"
+diff --git a/recipes-multimedia/imsdk/gst-plugins-imsdk-python_1.0.2.bb b/recipes-multimedia/imsdk/gst-plugins-imsdk-python_1.0.2.bb
+new file mode 100644
+index 00000000..eb450a2f
+--- /dev/null
++++ b/recipes-multimedia/imsdk/gst-plugins-imsdk-python_1.0.2.bb
+@@ -0,0 +1,13 @@
++require gst-plugins-imsdk-common.inc
++require gst-plugins-imsdk-packaging.inc
++
++SUMMARY = "Qualcomm IMSDK GStreamer Python Libraries"
++DESCRIPTION = "Python binding overrides (complementing the bindings provided by python-gi) for IMSDK GStreamer libraries."
++
++DEPENDS += "gst-plugins-imsdk-base python3-pygobject"
++
++PACKAGECONFIG = "python"
++
++REQUIRED_DISTRO_FEATURES += "gobject-introspection-data"
++
++FILES:${PN}:append = " ${PYTHON_SITEPACKAGES_DIR}"

@@ -11,6 +11,10 @@ repos:
   meta-qcom:
     url: https://github.com/qualcomm-linux/meta-qcom
     commit: d2dda53767a99880287691c2d8ea1e1dd6f81ae2
+    patches:
+      restore-missing-runtime-providers:
+        repo: meta-qcom-robotics-sdk
+        path: patches/meta-qcom/0001-restore-missing-runtime-providers.patch
   meta-qcom-distro:
     url: https://github.com/qualcomm-linux/meta-qcom-distro
     branch: main
